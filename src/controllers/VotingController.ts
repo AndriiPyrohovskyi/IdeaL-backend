@@ -67,7 +67,51 @@ export const getVotings = async (req: Request, res: Response): Promise<void> => 
   try {
     const snapshot = await db.collection('votings')
       .where('status', '==', 'active')
-      .orderBy('created_at', 'desc')
+      .get();
+    
+    const votings: any[] = [];
+    
+    snapshot.forEach((doc) => {
+      votings.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    votings.sort((a, b) => {
+      const dateA = a.created_at?.toDate ? a.created_at.toDate() : new Date(a.created_at);
+      const dateB = b.created_at?.toDate ? b.created_at.toDate() : new Date(b.created_at);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    res.json({
+      success: true,
+      count: votings.length,
+      data: votings
+    });
+  } catch (error) {
+    console.error('Error in getVotings:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+export const getUserVotings = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    
+    if (userId !== req.user?.uid && req.user?.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+      return;
+    }
+    
+    // Без orderBy щоб уникнути помилки індексів
+    const snapshot = await db.collection('votings')
+      .where('author_id', '==', userId)
       .get();
     
     const votings: any[] = [];
@@ -79,12 +123,20 @@ export const getVotings = async (req: Request, res: Response): Promise<void> => 
       });
     });
     
+    // Сортуємо вручну по created_at
+    votings.sort((a, b) => {
+      const dateA = a.created_at?.toDate ? a.created_at.toDate() : new Date(a.created_at);
+      const dateB = b.created_at?.toDate ? b.created_at.toDate() : new Date(b.created_at);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
     res.json({
       success: true,
       count: votings.length,
       data: votings
     });
   } catch (error) {
+    console.error('Error in getUserVotings:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

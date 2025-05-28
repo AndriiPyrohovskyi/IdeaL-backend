@@ -110,3 +110,48 @@ export const getAllVotes = async (req: AuthenticatedRequest, res: Response): Pro
     });
   }
 };
+
+export const getUserVotes = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    
+    if (userId !== req.user?.uid && req.user?.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+      return;
+    }
+    
+    const snapshot = await db.collection('votes')
+      .where('user_id', '==', userId)
+      .get();
+    
+    const votes: any[] = [];
+    
+    snapshot.forEach((doc) => {
+      votes.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    votes.sort((a, b) => {
+      const dateA = a.voted_at?.toDate ? a.voted_at.toDate() : new Date(a.voted_at);
+      const dateB = b.voted_at?.toDate ? b.voted_at.toDate() : new Date(b.voted_at);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    res.json({
+      success: true,
+      count: votes.length,
+      data: votes
+    });
+  } catch (error) {
+    console.error('Error in getUserVotes:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
